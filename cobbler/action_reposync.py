@@ -431,14 +431,18 @@ class RepoSync:
 
         # grab repomd.xml and use it to download any metadata we can use
         proxies = {}
-        proxies['http'] = self.settings.proxy_url_ext
+        if repo.proxy == '<<inherit>>':
+            proxies['http'] = self.settings.proxy_url_ext
+        elif repo.proxy != '<<None>>' and repo.proxy != '':
+            proxies['http'] = repo.proxy
+            proxies['https'] = repo.proxy
 
         src = repo_mirror + "/repodata/repomd.xml"
         dst = temp_path + "/repomd.xml"
         try:
             urlgrabber.grabber.urlgrab(src, filename=dst, proxies=proxies)
-        except:
-            utils.die(self.logger, "failed to fetch %s" % src)
+        except Exception as e:
+            utils.die(self.logger, "failed to fetch " + src + " " + e.args)
 
         # create our repodata directory now, as any extra metadata we're
         # about to download probably lives there
@@ -453,8 +457,8 @@ class RepoSync:
                 dst = dest_path + "/" + mdfile
                 try:
                     urlgrabber.grabber.urlgrab(src, filename=dst, proxies=proxies)
-                except:
-                    utils.die(self.logger, "failed to fetch %s" % src)
+                except Exception as e:
+                    utils.die(self.logger, "failed to fetch " + src + " " + e.args)
 
         # now run createrepo to rebuild the index
         if repo.mirror_locally:
@@ -592,8 +596,14 @@ class RepoSync:
             line = line.replace("@@server@@", http_server)
             config_file.write(line)
 
-            if repo.proxy != '':
-                config_file.write("proxy=%s\n" % repo.proxy)
+            config_proxy = None
+            if repo.proxy == '<<inherit>>':
+                config_proxy = self.settings.proxy_url_ext
+            elif repo.proxy != '' and repo.proxy != '<<None>>':
+                config_proxy = repo.proxy
+
+            if config_proxy is not None:
+                config_file.write("proxy=%s\n" % config_proxy)
 
         if not optenabled:
             config_file.write("enabled=1\n")
